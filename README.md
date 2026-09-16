@@ -1,5 +1,8 @@
 # 🪰 FlyTrader — биомиметический торговый агент
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
 **FlyTrader** — это инновационный торговый агент на основе биомиметической модели спайковой нейросети грибовидного тела (*Mushroom Body*) плодовой мухи *Drosophila melanogaster*. Проект моделирует сенсорную обработку рынка, ассоциативное обучение через дофаминовые сигналы ошибки предсказания награды (Reward Prediction Error, RPE) и сравнивает две стратегии: **FlyA** (чистое подкрепление) и **FlyB** (с пептидом наказания).
 
 ---
@@ -108,3 +111,10 @@ FlyB: +11.79%, WinRate 48.9%, сделок 348 (Побед 170, Поражени
 - Интеграция вебхуков реального времени в торговый цикл агента.
 - Подключение реального брокера (например, Binance Futures API / Alpaca).
 - Внедрение полноценной STDP (Spike-Timing-Dependent Plasticity) для синапсов KC→MBON.
+
+---
+
+## 📜 Лицензия
+
+Этот проект распространяется под лицензией MIT — см. файл [LICENSE](LICENSE).
+Свободно используйте, форкайте и модифицируйте с указанием авторства.
