@@ -1,0 +1,43 @@
+//@version=5
+indicator("FlyTrader Signal", overlay=true)
+
+// Входные параметры
+fastLen = input.int(12, title="Fast EMA Length")
+slowLen = input.int(26, title="Slow EMA Length")
+rsiLen  = input.int(14, title="RSI Length")
+rsiOB   = input.int(70, title="RSI Overbought")
+rsiOS   = input.int(30, title="RSI Oversold")
+secretKey = input.string("flytrader_secret_2026", title="Secret Key", secret=true)
+
+// Индикаторы
+fastEMA = ta.ema(close, fastLen)
+slowEMA = ta.ema(close, slowLen)
+rsiVal  = ta.rsi(close, rsiLen)
+
+// Условия сигналов
+buySignal  = ta.crossover(fastEMA, slowEMA) and rsiVal < rsiOB
+sellSignal = ta.crossunder(fastEMA, slowEMA) and rsiVal > rsiOS
+
+// Функция формирования JSON пейлоада
+jsonPayload(string actionType) =>
+    '{"secret": "' + secretKey + '", ' +
+    '"symbol": "' + syminfo.ticker + '", ' +
+    '"action": "' + actionType + '", ' +
+    '"price": ' + str.tostring(close) + ', ' +
+    '"timeframe": "' + timeframe.period + '", ' +
+    '"strategy": "FlyTrader_EMA_RSI", ' +
+    '"timestamp": "' + str.tostring(timenow) + '"}'
+
+// Оповещения (Alerts)
+if buySignal
+    alert(jsonPayload("BUY"), alert.freq_once_per_bar_close)
+
+if sellSignal
+    alert(jsonPayload("SELL"), alert.freq_once_per_bar_close)
+
+// Визуализация на графике
+plot(fastEMA, color=color.blue, title="Fast EMA")
+plot(slowEMA, color=color.orange, title="Slow EMA")
+
+plotshape(buySignal, title="Buy Signal", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(sellSignal, title="Sell Signal", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
