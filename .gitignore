@@ -6,3 +6,4 @@ data/*.csv
 .vscode/
 .idea/
 *.png
+.DS_Store
