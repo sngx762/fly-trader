@@ -7,3 +7,4 @@ data/*.csv
 .idea/
 *.png
 .DS_Store
+*.csv
