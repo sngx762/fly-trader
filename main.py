@@ -4,6 +4,7 @@
 
 import os
 import threading
+import logging
 import numpy as np
 import config
 from market_data import load_ohlcv, generate_synthetic_data, normalize_features, FeatureEncoder
@@ -11,6 +12,8 @@ from fly_brain import MushroomBody, DopamineSystem
 from trading_agent import TradingAgent
 from paper_trader import PaperTrader
 from tradingview_server import start_server
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
 def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42) -> dict:
@@ -42,7 +45,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
         action, confidence = agent.decide(mbon_activity)
 
         if step_idx == 0:
-            print(f"Debug step 1: sensory_sum={sensory_spikes.sum():.4f}, mbon_activity={mbon_activity}, decision={action}, confidence={confidence}")
+            logging.debug(f"Debug step 1: sensory_sum={sensory_spikes.sum():.4f}, mbon_activity={mbon_activity}, decision={action}, confidence={confidence}")
 
         current_price = float(df["close"].iloc[config.FEATURE_WINDOW + step_idx])
         trader.update_price(current_price)
@@ -57,8 +60,8 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
 
         if (step_idx + 1) % 200 == 0:
             eq = trader.get_equity()
-            print(f"[Fly {mode}] Step {step_idx + 1}/{steps_to_run} | Price: {current_price:.2f} | "
-                  f"Equity: {eq:.2f} | DA: {da_info['da_level']:.2f} | RPE: {da_info['rpe']:.4f}")
+            logging.debug(f"[Fly {mode}] Step {step_idx + 1}/{steps_to_run} | Price: {current_price:.2f} | "
+                          f"Equity: {eq:.2f} | DA: {da_info['da_level']:.2f} | RPE: {da_info['rpe']:.4f}")
 
     trades = trader.trades
     sell_trades = [t for t in trades if t["type"] == "SELL"]
@@ -70,12 +73,12 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
     return_pct = ((final_equity - config.INITIAL_BALANCE) / config.INITIAL_BALANCE) * 100.0
 
     if total_trades == 0:
-        print("⚠️ Муха не совершила ни одной сделки, проверь мозг")
+        logging.warning("⚠️ Муха не совершила ни одной сделки, проверь мозг")
 
-    print(f"\n--- Итоги Fly {mode} ---")
-    print(f"Финальный капитал: {final_equity:.2f} ({return_pct:+.2f}%)")
-    print(f"Всего сделок: {total_trades} (Побед: {wins}, Поражений: {losses})")
-    print(f"Win Rate: {winrate * 100:.1f}%\n")
+    logging.info(f"--- Итоги Fly {mode} ---")
+    logging.info(f"Финальный капитал: {final_equity:.2f} ({return_pct:+.2f}%)")
+    logging.info(f"Всего сделок: {total_trades} (Побед: {wins}, Поражений: {losses})")
+    logging.info(f"Win Rate: {winrate * 100:.1f}%\n")
 
     return {
         "mode": mode,
@@ -94,25 +97,25 @@ def main():
         try:
             start_server(host="0.0.0.0", port=5001)
         except Exception as e:
-            print(f"⚠️ TradingView webhook server не запустился: {e}")
-            print("   Симуляция мух продолжится без вебхуков.")
+            logging.warning(f"⚠️ TradingView webhook server не запустился: {e}")
+            logging.warning("   Симуляция мух продолжится без вебхуков.")
 
     server_thread = threading.Thread(target=_run_server, daemon=True)
     server_thread.start()
-    print("🚀 TradingView webhook server starting on port 5001...")
+    logging.info("🚀 TradingView webhook server starting on port 5001...")
 
     csv_path = "data/BTCUSDT_1h.csv"
-    print("=== Запуск FlyA (Чистое подкрепление) ===")
+    logging.info("=== Запуск FlyA (Чистое подкрепление) ===")
     res_a = run_fly(csv_path, mode="A", n_steps=2000, seed=42)
 
-    print("=== Запуск FlyB (С пептидом наказания) ===")
+    logging.info("=== Запуск FlyB (С пептидом наказания) ===")
     res_b = run_fly(csv_path, mode="B", n_steps=2000, seed=42)
 
-    print("==========================================")
-    print("СРАВНЕНИЕ РЕЗУЛЬТАТОВ (FlyA vs FlyB):")
-    print(f"FlyA (Без наказания): Доходность = {res_a['return_pct']:+.2f}%, WinRate = {res_a['winrate']*100:.1f}%, Сделок = {res_a['total_trades']}")
-    print(f"FlyB (С наказанием):  Доходность = {res_b['return_pct']:+.2f}%, WinRate = {res_b['winrate']*100:.1f}%, Сделок = {res_b['total_trades']}")
-    print("==========================================")
+    logging.info("==========================================")
+    logging.info("СРАВНЕНИЕ РЕЗУЛЬТАТОВ (FlyA vs FlyB):")
+    logging.info(f"FlyA (Без наказания): Доходность = {res_a['return_pct']:+.2f}%, WinRate = {res_a['winrate']*100:.1f}%, Сделок = {res_a['total_trades']}")
+    logging.info(f"FlyB (С наказанием):  Доходность = {res_b['return_pct']:+.2f}%, WinRate = {res_b['winrate']*100:.1f}%, Сделок = {res_b['total_trades']}")
+    logging.info("==========================================")
 
 
 if __name__ == "__main__":

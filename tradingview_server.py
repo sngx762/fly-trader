@@ -2,13 +2,17 @@
 Flask-сервер для приема вебхуков от TradingView и обработки торговых сигналов.
 """
 
+import os
 import threading
 from queue import Queue
 from flask import Flask, request, jsonify
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
-SECRET_KEY = "flytrader_secret_2026"
+SECRET_KEY = os.getenv("FLYTRADER_SECRET", "flytrader_secret_2026")
 signal_queue = Queue()
 queue_lock = threading.Lock()
 
