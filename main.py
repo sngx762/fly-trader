@@ -1,5 +1,5 @@
 """
-Основной скрипт симуляции и обучения биомиметических трейдинг-агентов (FlyA и FlyB) для нескольких активов (BTC, XAU) с поддержкой кастомных гиперпараметров.
+Основной скрипт симуляции и обучения биомиметических трейдинг-агентов (FlyA и FlyB) для BTC.
 """
 
 import os
@@ -22,7 +22,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 ASSETS = {
     "BTC": "data/BTCUSDT_1h.csv",
-    "XAU": "data/XAUUSD_1h.csv",
 }
 
 
@@ -42,7 +41,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42,
     try:
         df = load_ohlcv(csv_path)
     except FileNotFoundError:
-        df = generate_synthetic_data(n=6000)
+        df = generate_synthetic_data(n=3000)
 
     norm_features = normalize_features(df, window=window)
     n_features = norm_features.shape[1]
@@ -162,7 +161,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42,
 def main():
     """Запуск фонового сервера TradingView и симуляции по выбранным активам."""
     parser = argparse.ArgumentParser(description="Запуск биомиметических трейдинг-агентов fly-trader")
-    parser.add_argument("--assets", type=str, default="BTC,XAU", help="Список активов через запятую (например: BTC,XAU)")
+    parser.add_argument("--assets", type=str, default="BTC", help="Список активов через запятую (например: BTC)")
     args = parser.parse_args()
 
     selected_assets = [a.strip().upper() for a in args.assets.split(",")]
