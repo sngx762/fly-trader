@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlyTrader — Neuro-Trading Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+            <div>
+                <h1 class="text-3xl font-bold flex items-center gap-2">
+                    <span>🪰</span> FlyTrader Dashboard
+                </h1>
+                <p class="text-gray-400 text-sm">Биомиметический трейдинг-агент (Drosophila Mushroom Body SNN)</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="px-3 py-1 bg-green-900 text-green-300 rounded-full text-xs font-semibold animate-pulse" id="server-status">● Сервер активен (Порт 5001)</span>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Card 1: Equity & Balance -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                <h3 class="text-gray-400 text-xs uppercase tracking-wider mb-2">Портфель / Капитал</h3>
+                <div class="text-3xl font-extrabold text-green-400 mb-1" id="equity-val">$100.00</div>
+                <div class="text-sm text-gray-400">Начальный баланс: $100.00</div>
+            </div>
+
+            <!-- Card 2: Dopamine Level -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                <h3 class="text-gray-400 text-xs uppercase tracking-wider mb-2">Уровень дофамина (DA)</h3>
+                <div class="text-3xl font-extrabold text-yellow-400 mb-1" id="da-val">0.20</div>
+                <div class="text-sm text-gray-400">Базовый уровень: 0.20 (RPE)</div>
+            </div>
+
+            <!-- Card 3: Mode & Strategy -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                <h3 class="text-gray-400 text-xs uppercase tracking-wider mb-2">Режим мухи (Fly Mode)</h3>
+                <div class="text-3xl font-extrabold text-blue-400 mb-1" id="fly-mode">FlyA (Без наказания)</div>
+                <div class="text-sm text-gray-400">Пластичность KC→MBON</div>
+            </div>
+        </div>
+
+        <!-- Secondary Section: Signals & Telemetry -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Webhook Signals Table -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                <h2 class="text-xl font-bold mb-4 flex items-center justify-between">
+                    <span>🔗 Сигналы TradingView (Webhooks)</span>
+                    <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300" id="signal-count">0 сигналов</span>
+                </h2>
+                <div class="overflow-x-auto max-h-80 overflow-y-auto">
+                    <table class="w-full text-left text-sm text-gray-300">
+                        <thead class="bg-gray-900 text-gray-400 uppercase text-xs">
+                            <tr>
+                                <th class="px-4 py-2">Время</th>
+                                <th class="px-4 py-2">Символ</th>
+                                <th class="px-4 py-2">Действие</th>
+                                <th class="px-4 py-2">Цена</th>
+                            </tr>
+                        </thead>
+                        <tbody id="signals-table-body" class="divide-y divide-gray-700">
+                            <tr>
+                                <td colspan="4" class="px-4 py-4 text-center text-gray-500">Ожидание входящих вебхуков...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Neural Brain Telemetry -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                <h2 class="text-xl font-bold mb-4">🧠 Телеметрия мозга Drosophila</h2>
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-gray-400">Kenyon Cells (KC) Разреженность</span>
+                            <span class="font-mono text-green-400">20 / 256 (Top-K)</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2.5">
+                            <div class="bg-green-500 h-2.5 rounded-full" style="width: 7.8%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-gray-400">MBON Активность (Спайки)</span>
+                            <span class="font-mono text-blue-400" id="mbon-status">Активна</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2.5">
+                            <div class="bg-blue-500 h-2.5 rounded-full" style="width: 65%"></div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-900 p-4 rounded-lg border border-gray-800 font-mono text-xs text-gray-400">
+                        <div>[Status]: Мозг функционирует в реальном времени.</div>
+                        <div>[Endpoint]: POST /webhook (Порт 5001)</div>
+                        <div>[Secret Key]: Проверен (FLYTRADER_SECRET)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function updateDashboard() {
+            try {
+                let res = await fetch('/api/status');
+                let data = await res.json();
+                
+                document.getElementById('equity-val').innerText = '$' + parseFloat(data.equity).toFixed(2);
+                document.getElementById('da-val').innerText = parseFloat(data.da_level).toFixed(2);
+                document.getElementById('fly-mode').innerText = data.mode;
+                
+                let tbody = document.getElementById('signals-table-body');
+                let countEl = document.getElementById('signal-count');
+                
+                if (data.signals && data.signals.length > 0) {
+                    countEl.innerText = data.signals.length + ' сигналов';
+                    tbody.innerHTML = data.signals.map(s => `
+                        <tr class="hover:bg-gray-750">
+                            <td class="px-4 py-2 font-mono text-xs text-gray-400">${new Date(s.timestamp || Date.now()).toLocaleTimeString()}</td>
+                            <td class="px-4 py-2 font-bold">${s.symbol || 'BTCUSDT'}</td>
+                            <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-xs font-bold ${s.action === 'BUY' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}">${s.action}</span></td>
+                            <td class="px-4 py-2 font-mono">${s.price || '-'}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error('Failed to fetch dashboard status', err);
+            }
+        }
+
+        setInterval(updateDashboard, 2000);
+        updateDashboard();
+    </script>
+</body>
+</html>
