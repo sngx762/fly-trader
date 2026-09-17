@@ -1,5 +1,5 @@
 """
-Загрузка рыночных данных OHLCV, расчет признаков с expanding-нормализацией и кодирование в спайки.
+Загрузка рыночных данных OHLCV, расчет признаков с оконным z-score, сессионными фичами и кодирование в спайки.
 """
 
 import numpy as np
@@ -44,7 +44,7 @@ def generate_synthetic_data(n: int = 1000) -> pd.DataFrame:
 
 
 def normalize_features(df: pd.DataFrame, window: int = 20) -> np.ndarray:
-    """Расчет логарифмических доходностей и объема с expanding-нормализацией (без заглядывания в будущее)."""
+    """Расчет логарифмических доходностей с z-score по окну, объема и сессионных фичей."""
     close = df["close"].values
     volume = df["volume"].values
 
@@ -55,36 +55,42 @@ def normalize_features(df: pd.DataFrame, window: int = 20) -> np.ndarray:
     vol_std = np.std(volume) if np.std(volume) > 0 else 1.0
     norm_vol = (volume - vol_mean) / vol_std
 
+    # Session features (UTC hours)
+    timestamps = pd.to_datetime(df["timestamp"])
+    hour_utc = timestamps.dt.hour.values
+    is_london = ((hour_utc >= 8) & (hour_utc < 16)).astype(float)
+    is_ny = ((hour_utc >= 13) & (hour_utc < 21)).astype(float)
+    is_overlap = ((hour_utc >= 13) & (hour_utc < 16)).astype(float)
+
     n = len(close)
     features_list = []
 
     for i in range(window, n):
         win_returns = log_returns[i - window + 1:i + 1]
+        mu = win_returns.mean()
+        sigma = win_returns.std() + 1e-9
+        win_returns_norm = (win_returns - mu) / sigma
+        win_returns_norm = np.clip(win_returns_norm, -3, 3) / 3  # в [-1, 1]
+
         win_vol = norm_vol[i - window + 1:i + 1]
-        feat = np.concatenate([win_returns, win_vol])
+        sess_feat = np.array([is_london[i], is_ny[i], is_overlap[i]])
+
+        feat = np.concatenate([win_returns_norm, win_vol, sess_feat])
         features_list.append(feat)
 
     if not features_list:
-        feat = np.zeros(window * 2)
+        feat = np.zeros(window * 2 + 3)
         features_list.append(feat)
 
-    features_matrix = np.array(features_list)
-
-    norm_features = np.zeros_like(features_matrix)
-    for i in range(len(features_matrix)):
-        f_min = features_matrix[:i+1].min(axis=0)
-        f_max = features_matrix[:i+1].max(axis=0)
-        norm_features[i] = (features_matrix[i] - f_min) / (f_max - f_min + 1e-9)
-
-    return norm_features
+    return np.array(features_list)
 
 
 class FeatureEncoder:
     """Класс-обертка для кодирования признаков в сенсорные активности (rate coding) без случайности."""
 
-    def __init__(self, n_sensory: int = config.N_SENSORY, rng: np.random.Generator = None):
+    def __init__(self, n_features: int, n_sensory: int = config.N_SENSORY, rng: np.random.Generator = None):
         self.rng = rng if rng is not None else np.random.default_rng(42)
-        self.proj_matrix = self.rng.uniform(-1.0, 1.0, (config.FEATURE_WINDOW * 2, n_sensory))
+        self.proj_matrix = self.rng.uniform(-1.0, 1.0, (n_features, n_sensory))
 
     def encode(self, features: np.ndarray) -> np.ndarray:
         """Преобразование вектора признаков в непрерывную активность (rate-coding)."""

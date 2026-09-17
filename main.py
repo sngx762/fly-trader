@@ -1,5 +1,5 @@
 """
-Основной скрипт симуляции и обучения биомиметических трейдинг-агентов (FlyA и FlyB) для нескольких активов (BTC, XAU).
+Основной скрипт симуляции и обучения биомиметических трейдинг-агентов (FlyA и FlyB) для нескольких активов (BTC, XAU) с поддержкой кастомных гиперпараметров.
 """
 
 import os
@@ -27,21 +27,31 @@ ASSETS = {
 
 
 def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42, asset_name: str = "BTC") -> dict:
-    """Запуск симуляции торгового агента (мухи) на рыночных данных."""
+    """Запуск симуляции торгового агента (мухи) на рыночных данных с учетом гиперпараметров актива."""
+    params = config.get_params(asset_name)
+    window = params["FEATURE_WINDOW"]
+    n_kenyon = params["N_KENYON"]
+    lr_reward = params["LR_REWARD"]
+    lr_punish = params["LR_PUNISH"]
+    lr_readout = params["LR_READOUT"]
+    decision_threshold = params["DECISION_THRESHOLD"]
+    min_hold_steps = params["MIN_HOLD_STEPS"]
+
     rng = np.random.default_rng(seed)
     
     try:
         df = load_ohlcv(csv_path)
     except FileNotFoundError:
-        df = generate_synthetic_data(n=3000)
+        df = generate_synthetic_data(n=6000)
 
-    norm_features = normalize_features(df, window=config.FEATURE_WINDOW)
+    norm_features = normalize_features(df, window=window)
+    n_features = norm_features.shape[1]
 
-    brain = MushroomBody(rng=rng)
+    brain = MushroomBody(n_kenyon=n_kenyon, lr_reward=lr_reward, lr_punish=lr_punish, rng=rng)
     dopamine = DopamineSystem(mode=mode)
-    agent = TradingAgent(rng=rng)
-    trader = PaperTrader(balance=config.INITIAL_BALANCE)
-    encoder = FeatureEncoder(n_sensory=config.N_SENSORY, rng=rng)
+    agent = TradingAgent(decision_threshold=decision_threshold, rng=rng)
+    trader = PaperTrader(balance=config.INITIAL_BALANCE, min_hold_steps=min_hold_steps)
+    encoder = FeatureEncoder(n_features=n_features, n_sensory=params["N_SENSORY"], rng=rng)
 
     steps_to_run = min(n_steps, len(norm_features))
     shared_state.update(mode=mode, running=True, total_steps=steps_to_run, fly_mode=mode, asset=asset_name)
@@ -60,7 +70,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42,
         if step_idx == 0:
             logging.debug(f"Debug step 1: sensory_sum={sensory_spikes.sum():.4f}, mbon_activity={mbon_activity}, decision={action}, confidence={confidence}")
 
-        current_price = float(df["close"].iloc[config.FEATURE_WINDOW + step_idx])
+        current_price = float(df["close"].iloc[window + step_idx])
         trader.update_price(current_price)
         pnl_delta = trader.execute(action, current_price)
 
@@ -69,7 +79,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42,
         if da_info["da_level"] > config.DA_BASELINE or da_info["is_punishment"]:
             brain.apply_dopamine(da_info["da_level"], is_punishment=da_info["is_punishment"])
 
-        agent.update_readout(mbon_activity, action, pnl_delta, da_level=da_info["da_level"])
+        agent.update_readout(mbon_activity, action, pnl_delta, da_level=da_info["da_level"], lr=lr_readout)
 
         # Обновление shared_state для 3D дашборда
         shared_state.update(
@@ -87,7 +97,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42,
             asset=asset_name,
         )
 
-        df_idx = config.FEATURE_WINDOW + step_idx
+        df_idx = window + step_idx
         shared_state.push_candle({
             "t": step_idx,
             "o": float(df["open"].iloc[df_idx]),

@@ -33,3 +33,29 @@ DECISION_THRESHOLD = 0.15
 MAX_POSITION = 1.0
 INITIAL_BALANCE = 100.0
 FLY_MODE = "A"  # "A" = без наказания, "B" = с наказанием
+
+HYPERPARAMS = {
+    "BTC": {
+        "FEATURE_WINDOW": 20,
+        "N_SENSORY": 64,
+        "N_KENYON": 256,
+        "LR_REWARD": 0.012,
+        "LR_PUNISH": 0.006,
+        "LR_READOUT": 0.001,
+        "DECISION_THRESHOLD": 0.15,
+        "MIN_HOLD_STEPS": 1,
+    },
+    "XAU": {
+        "FEATURE_WINDOW": 40,
+        "N_SENSORY": 64,
+        "N_KENYON": 384,
+        "LR_REWARD": 0.030,
+        "LR_PUNISH": 0.015,
+        "LR_READOUT": 0.002,
+        "DECISION_THRESHOLD": 0.20,
+        "MIN_HOLD_STEPS": 5,
+    },
+}
+
+def get_params(asset_name):
+    return HYPERPARAMS.get(asset_name, HYPERPARAMS["BTC"])

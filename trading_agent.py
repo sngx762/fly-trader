@@ -9,8 +9,9 @@ import config
 class TradingAgent:
     """Торговый агент с линейным считывателем (readout) из активности MBON."""
 
-    def __init__(self, rng: np.random.Generator = None):
+    def __init__(self, decision_threshold: float = config.DECISION_THRESHOLD, rng: np.random.Generator = None):
         self.rng = rng if rng is not None else np.random.default_rng(42)
+        self.decision_threshold = decision_threshold
         self.readout = self.rng.normal(0, 0.1, (config.N_MBON, 3))
 
     def decide(self, mbon_activity: np.ndarray) -> tuple:
@@ -23,7 +24,7 @@ class TradingAgent:
         action = int(self.rng.choice(3, p=probs))
         confidence = float(probs[action])
 
-        if confidence < config.DECISION_THRESHOLD:
+        if confidence < self.decision_threshold:
             action = 0  # hold по умолчанию при низкой уверенности
 
         return action, confidence

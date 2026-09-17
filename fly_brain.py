@@ -10,7 +10,6 @@ class LIFNeuron:
     """Упрощенный LIF-нейрон (rate-coding / интегратор спайкового следа)."""
 
     def __init__(self):
-        # задел на будущую STDP-модель
         self.v = config.V_RESET
         self.refractory_counter = 0
         self.spike_trace = 0.0
@@ -29,15 +28,18 @@ class LIFNeuron:
 class MushroomBody:
     """Грибовидное тело (Kenyon cells и MBON)."""
 
-    def __init__(self, rng: np.random.Generator = None):
+    def __init__(self, n_kenyon: int = config.N_KENYON, lr_reward: float = config.LR_REWARD, lr_punish: float = config.LR_PUNISH, rng: np.random.Generator = None):
         self.rng = rng if rng is not None else np.random.default_rng(42)
-        self.kc_neurons = [LIFNeuron() for _ in range(config.N_KENYON)]
+        self.n_kenyon = n_kenyon
+        self.lr_reward = lr_reward
+        self.lr_punish = lr_punish
+        self.kc_neurons = [LIFNeuron() for _ in range(self.n_kenyon)]
         self.mbon_neurons = [LIFNeuron() for _ in range(config.N_MBON)]
 
-        self.w_sens_kc = self.rng.uniform(-1.0, 1.0, (config.N_SENSORY, config.N_KENYON))
-        self.w_kc_mbon = self.rng.uniform(0.1, 0.3, (config.N_KENYON, config.N_MBON))
+        self.w_sens_kc = self.rng.uniform(-1.0, 1.0, (config.N_SENSORY, self.n_kenyon))
+        self.w_kc_mbon = self.rng.uniform(0.1, 0.3, (self.n_kenyon, config.N_MBON))
 
-        self.kc_spikes_prev = np.zeros(config.N_KENYON, dtype=float)
+        self.kc_spikes_prev = np.zeros(self.n_kenyon, dtype=float)
         self.mbon_spikes_prev = np.zeros(config.N_MBON, dtype=float)
 
     def step(self, sensory_spikes: np.ndarray) -> np.ndarray:
@@ -70,9 +72,9 @@ class MushroomBody:
             return
 
         if is_punishment or da_delta < 0:
-            lr = -config.LR_PUNISH * abs(da_delta)
+            lr = -self.lr_punish * abs(da_delta)
         else:
-            lr = config.LR_REWARD * da_delta
+            lr = self.lr_reward * da_delta
 
         kc_traces = np.array([n.spike_trace for n in self.kc_neurons])
         mbon_traces = np.array([n.spike_trace for n in self.mbon_neurons])
