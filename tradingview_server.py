@@ -1,59 +1,22 @@
 """
-Flask-сервер для приема вебхуков от TradingView и обработки торговых сигналов с веб-интерфейсом (Dashboard).
+Flask-сервер для приема вебхуков от TradingView и интеграции с 3D дашбордом.
 """
 
 import os
 import threading
 from queue import Queue
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify
 from dotenv import load_dotenv
+from dashboard import bp as dashboard_bp
 
 load_dotenv()
 
 app = Flask(__name__, template_folder="templates")
+app.register_blueprint(dashboard_bp)
 
 SECRET_KEY = os.getenv("FLYTRADER_SECRET", "flytrader_secret_2026")
 signal_queue = Queue()
 queue_lock = threading.Lock()
-
-# Глобальное состояние для дашборда
-system_state = {
-    "equity": 100.0,
-    "da_level": 0.2,
-    "rpe": 0.0,
-    "mode": "FlyA (Без наказания)",
-    "signals": []
-}
-state_lock = threading.Lock()
-
-
-@app.route("/")
-def dashboard():
-    """Веб-дашборд для визуализации работы торгового агента."""
-    return render_template("index.html")
-
-
-@app.route("/api/status", methods=["GET"])
-def api_status():
-    """API для получения текущего состояния агента и последних сигналов."""
-    with state_lock, queue_lock:
-        signals_list = list(signal_queue.queue)
-        state_data = system_state.copy()
-        state_data["signals"] = signals_list[::-1]
-    return jsonify(state_data)
-
-
-@app.route("/api/update_state", methods=["POST"])
-def api_update_state():
-    """API для обновления состояния из симулятора."""
-    data = request.get_json(silent=True)
-    if data:
-        with state_lock:
-            for k, v in data.items():
-                if k in system_state:
-                    system_state[k] = v
-        return jsonify({"status": "updated"}), 200
-    return jsonify({"error": "Invalid data"}), 400
 
 
 @app.route("/webhook", methods=["POST"])

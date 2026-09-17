@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlyTrader // Bio-SNN Neural Terminal</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <!-- Three.js Importmap -->
+    <script type="importmap">
+    {"imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }}
+    </script>
+</head>
+<body class="bg-[#050508] text-[#e0e8ff] font-sans overflow-hidden h-screen w-screen selection:bg-[#33ccff]/30">
+
+    <!-- 3D Canvas Background -->
+    <canvas id="webgl-canvas" class="fixed inset-0 z-0 outline-none"></canvas>
+
+    <!-- UI Overlay Wrapper -->
+    <div class="relative z-10 flex flex-col justify-between h-screen w-screen pointer-events-none p-4 box-border">
+        
+        <!-- TOP BAR: Header & Status -->
+        <header class="flex justify-between items-center pointer-events-auto bg-[#0f0f19]/80 backdrop-blur-xl border border-[#6496ff]/20 rounded-2xl px-6 py-3 shadow-[0_0_20px_rgba(51,204,255,0.1)]">
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <span class="inline-block w-3 h-3 rounded-full bg-[#00ff88] animate-pulse shadow-[0_0_10px_#00ff88]"></span>
+                    <h1 class="font-bold text-lg tracking-wider text-white font-mono flex items-center gap-2">
+                        🪰 FLY<span class="text-[#33ccff]">TRADER</span>
+                    </h1>
+                </div>
+                <div class="h-4 w-[1px] bg-white/10"></div>
+                <div class="text-xs font-mono px-3 py-1 rounded-lg bg-[#1a1a2e] border border-[#33ccff]/30 text-[#33ccff]" id="mode-badge">
+                    MODE: FLY A
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-6 font-mono text-sm">
+                <div class="flex items-center space-x-2">
+                    <span class="text-[#667788] text-xs">STEP:</span>
+                    <span id="step-counter" class="text-white font-bold">0 / 2000</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-[#667788] text-xs">STATUS:</span>
+                    <span id="run-status" class="text-[#00ff88] font-bold">IDLE</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- CENTER / MAIN BODY -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 my-4 min-h-0">
+            
+            <!-- LEFT / BOTTOM-LEFT: Mini Equity Chart & Info -->
+            <div class="hidden lg:flex flex-col justify-end pointer-events-auto">
+                <div class="bg-[#0f0f19]/80 backdrop-blur-xl border border-[#6496ff]/20 rounded-2xl p-4 shadow-[0_0_20px_rgba(51,204,255,0.1)]">
+                    <div class="text-xs font-mono text-[#667788] mb-2 flex justify-between">
+                        <span>EQUITY CURVE</span>
+                        <span id="equity-minmax" class="text-[#33ccff]">$100.00</span>
+                    </div>
+                    <div class="relative w-full h-[80px] bg-[#050508]/80 rounded-xl overflow-hidden border border-white/5">
+                        <canvas id="equity-canvas" class="w-full h-full"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CENTER: 3D Scene Viewport placeholder / interactive area -->
+            <div class="col-span-1 lg:col-span-2 pointer-events-none flex flex-col justify-between">
+                <!-- Floating center notifications or hints if needed -->
+            </div>
+
+            <!-- RIGHT PANEL: Glassmorphism HUD -->
+            <aside class="pointer-events-auto flex flex-col space-y-4 overflow-y-auto">
+                
+                <!-- Portfolio Metrics Box -->
+                <div class="bg-[#0f0f19]/80 backdrop-blur-xl border border-[#6496ff]/20 rounded-2xl p-5 shadow-[0_0_25px_rgba(51,204,255,0.15)]">
+                    <div class="text-xs font-mono text-[#667788] mb-1">PORTFOLIO BALANCE</div>
+                    <div id="metric-balance" class="text-3xl font-bold font-mono tracking-tight text-white mb-2">$100.00</div>
+                    
+                    <div class="flex justify-between items-center text-sm font-mono pt-2 border-t border-white/10">
+                        <span class="text-[#667788]">TOTAL P&L</span>
+                        <span id="metric-pnl" class="font-bold text-[#00ff88]">+0.00%</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm font-mono pt-1">
+                        <span class="text-[#667788]">POSITION</span>
+                        <span id="metric-position" class="text-white">0.00 BTC</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm font-mono pt-1">
+                        <span class="text-[#667788]">CURRENT PRICE</span>
+                        <span id="metric-price" class="text-[#33ccff]">$0.00</span>
+                    </div>
+                </div>
+
+                <!-- Neural & Dopamine Box -->
+                <div class="bg-[#0f0f19]/80 backdrop-blur-xl border border-[#6496ff]/20 rounded-2xl p-5 shadow-[0_0_25px_rgba(51,204,255,0.15)]">
+                    <div class="text-xs font-mono text-[#667788] mb-3 flex justify-between">
+                        <span>DOPAMINE SYSTEM (RPE)</span>
+                        <span id="metric-rpe" class="text-[#33ccff] font-bold">+0.000</span>
+                    </div>
+                    
+                    <!-- Dopamine Progress Bar -->
+                    <div class="w-full bg-[#1a1a2e] rounded-full h-3 mb-4 overflow-hidden border border-white/10 p-[1px]">
+                        <div id="dopa-bar" class="bg-gradient-to-r from-[#33ccff] via-[#00ff88] to-[#ffaa00] h-full rounded-full transition-all duration-300" style="width: 20%;"></div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                        <div class="bg-[#1a1a2e]/60 p-2.5 rounded-xl border border-white/5">
+                            <span class="text-[#667788] block text-[10px]">DA LEVEL</span>
+                            <span id="metric-dopa" class="text-lg font-bold text-white">0.20</span>
+                        </div>
+                        <div class="bg-[#1a1a2e]/60 p-2.5 rounded-xl border border-white/5">
+                            <span class="text-[#667788] block text-[10px]">CONFIDENCE</span>
+                            <span id="metric-conf" class="text-lg font-bold text-[#33ccff]">0.0%</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-white/10 flex justify-between items-center">
+                        <span class="text-xs font-mono text-[#667788]">LATEST ACTION</span>
+                        <span id="metric-action" class="px-3 py-1 rounded-lg bg-[#1a1a2e] font-mono font-bold text-sm text-[#00ff88] border border-white/10">HOLD</span>
+                    </div>
+                </div>
+
+                <!-- Recent Trades Box -->
+                <div class="bg-[#0f0f19]/80 backdrop-blur-xl border border-[#6496ff]/20 rounded-2xl p-5 flex-1 shadow-[0_0_25px_rgba(51,204,255,0.15)] min-h-[220px] flex flex-col">
+                    <div class="text-xs font-mono text-[#667788] mb-3">RECENT TRADES</div>
+                    <div class="overflow-y-auto flex-1 pr-1 space-y-2 max-h-[200px]" id="trades-container">
+                        <div class="text-xs font-mono text-[#667788] text-center py-4">Ожидание сделок...</div>
+                    </div>
+                </div>
+
+            </aside>
+        </div>
+
+        <!-- FOOTER: Bottom ticker / status -->
+        <footer class="pointer-events-auto bg-[#0f0f19]/80 backdrop-blur-xl border border-[#6496ff]/20 rounded-2xl px-6 py-2.5 flex justify-between items-center text-xs font-mono shadow-[0_0_20px_rgba(51,204,255,0.1)]">
+            <div class="flex items-center space-x-3 text-[#667788]">
+                <span>FlyTrader SNN Core</span>
+                <span>•</span>
+                <span>Mushroom Body KC/MBON</span>
+                <span>•</span>
+                <span class="text-[#33ccff]">TradingView Webhook Ready</span>
+            </div>
+            <div class="text-[#33ccff]" id="event-ticker">
+                Система готова к запуску симуляции.
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Flash overlay for dopamine burst / punishment -->
+    <div id="flash-overlay" class="fixed inset-0 pointer-events-none z-50 transition-opacity duration-300 opacity-0 border-4 border-transparent"></div>
+
+    <!-- Frontend Modular Scripts -->
+    <script type="module" src="/static/js/api.js"></script>
+    <script type="module" src="/static/js/scene.js"></script>
+    <script type="module" src="/static/js/fly.js"></script>
+    <script type="module" src="/static/js/monitor.js"></script>
+    <script type="module" src="/static/js/hud.js"></script>
+</body>
+</html>
