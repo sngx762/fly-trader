@@ -21,7 +21,7 @@ def api_state():
     return jsonify({k: s[k] for k in [
         "step", "total_steps", "price", "balance", "position", "equity",
         "pnl_pct", "dopamine", "rpe", "action", "confidence", "fly_mode",
-        "mode", "running"
+        "asset", "mode", "running"
     ]})
 
 
@@ -46,7 +46,7 @@ def api_stream():
                     last_step = s["step"]
                     payload = {k: s[k] for k in [
                         "step", "price", "equity", "pnl_pct", "dopamine", "rpe",
-                        "action", "confidence", "balance", "position"
+                        "action", "confidence", "balance", "position", "asset", "fly_mode"
                     ]}
                     payload["events"] = list(s["events"])[-3:]
                     yield f"data: {json.dumps(payload)}\n\n"

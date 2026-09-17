@@ -20,6 +20,7 @@ _state = {
     "action": "HOLD",
     "confidence": 0.0,
     "fly_mode": "A",
+    "asset": "BTC",
     "mode": "live",
     "running": False,
     "candles": deque(maxlen=200),

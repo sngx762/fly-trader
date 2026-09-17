@@ -1,9 +1,10 @@
 """
-Основной скрипт симуляции и обучения биомиметических трейдинг-агентов (FlyA и FlyB).
+Основной скрипт симуляции и обучения биомиметических трейдинг-агентов (FlyA и FlyB) для нескольких активов (BTC, XAU).
 """
 
 import os
 import time
+import argparse
 import threading
 import logging
 import numpy as np
@@ -19,8 +20,13 @@ from tradingview_server import start_server
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
+ASSETS = {
+    "BTC": "data/BTCUSDT_1h.csv",
+    "XAU": "data/XAUUSD_1h.csv",
+}
 
-def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42) -> dict:
+
+def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42, asset_name: str = "BTC") -> dict:
     """Запуск симуляции торгового агента (мухи) на рыночных данных."""
     rng = np.random.default_rng(seed)
     
@@ -38,7 +44,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
     encoder = FeatureEncoder(n_sensory=config.N_SENSORY, rng=rng)
 
     steps_to_run = min(n_steps, len(norm_features))
-    shared_state.update(mode=mode, running=True, total_steps=steps_to_run, fly_mode=mode)
+    shared_state.update(mode=mode, running=True, total_steps=steps_to_run, fly_mode=mode, asset=asset_name)
 
     sleep_sec = float(os.getenv("SLEEP_SEC", "0.02"))
 
@@ -78,6 +84,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
             action=["HOLD", "BUY", "SELL"][action],
             confidence=float(confidence),
             fly_mode=mode,
+            asset=asset_name,
         )
 
         df_idx = config.FEATURE_WINDOW + step_idx
@@ -105,7 +112,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
 
         if (step_idx + 1) % 200 == 0:
             eq = trader.get_equity()
-            logging.info(f"[Fly {mode}] step {step_idx+1}, sleep={sleep_sec} | Price: {current_price:.2f} | Equity: {eq:.2f} | DA: {da_info['da_level']:.2f}")
+            logging.info(f"[{asset_name} | Fly {mode}] step {step_idx+1}, sleep={sleep_sec} | Price: {current_price:.2f} | Equity: {eq:.2f} | DA: {da_info['da_level']:.2f}")
 
         time.sleep(sleep_sec)
 
@@ -119,29 +126,38 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
     winrate = (wins / total_trades) if total_trades > 0 else 0.0
     final_equity = trader.get_equity()
     return_pct = ((final_equity - config.INITIAL_BALANCE) / config.INITIAL_BALANCE) * 100.0
+    peak_equity = max(trader.equity_curve)
 
     if total_trades == 0:
         logging.warning("⚠️ Муха не совершила ни одной сделки, проверь мозг")
 
-    logging.info(f"--- Итоги Fly {mode} ---")
-    logging.info(f"Финал. капитал: {final_equity:.2f} ({return_pct:+.2f}%)")
+    logging.info(f"--- Итоги {asset_name} Fly {mode} ---")
+    logging.info(f"Финал. капитал: {final_equity:.2f} ({return_pct:+.2f}%) | Пик: ${peak_equity:.2f}")
     logging.info(f"Всего сделок: {total_trades} (Побед: {wins}, Поражений: {losses})")
     logging.info(f"Win Rate: {winrate * 100:.1f}%\n")
 
     return {
+        "asset": asset_name,
         "mode": mode,
         "final_equity": final_equity,
         "return_pct": return_pct,
         "total_trades": total_trades,
         "wins": wins,
         "losses": losses,
-        "winrate": winrate
+        "winrate": winrate,
+        "peak": peak_equity
     }
 
 
 def main():
-    """Запуск фонового сервера TradingView и симуляции двух мух (FlyA и FlyB)."""
-    logging.info(f"⏱️ SLEEP_SEC={os.getenv('SLEEP_SEC', '0.02')}, LOOP={os.getenv('LOOP_SIMULATION', 'false')}")
+    """Запуск фонового сервера TradingView и симуляции по выбранным активам."""
+    parser = argparse.ArgumentParser(description="Запуск биомиметических трейдинг-агентов fly-trader")
+    parser.add_argument("--assets", type=str, default="BTC,XAU", help="Список активов через запятую (например: BTC,XAU)")
+    args = parser.parse_args()
+
+    selected_assets = [a.strip().upper() for a in args.assets.split(",")]
+
+    logging.info(f"⏱️ SLEEP_SEC={os.getenv('SLEEP_SEC', '0.02')}, LOOP={os.getenv('LOOP_SIMULATION', 'false')}, ASSETS={selected_assets}")
 
     def _run_server():
         try:
@@ -154,22 +170,33 @@ def main():
     server_thread.start()
     logging.info("🚀 TradingView webhook server & 3D Dashboard starting on http://0.0.0.0:5001 ...")
 
-    csv_path = "data/BTCUSDT_1h.csv"
-    
     loop_mode = os.getenv("LOOP_SIMULATION", "false").lower() == "true"
+    all_results = []
 
     while True:
-        logging.info("=== Запуск FlyA (Чистое подкрепление) ===")
-        res_a = run_fly(csv_path, mode="A", n_steps=2000, seed=42)
+        all_results = []
+        for asset in selected_assets:
+            if asset not in ASSETS:
+                logging.warning(f"⚠️ Неизвестный актив '{asset}', пропускаем.")
+                continue
+            csv_path = ASSETS[asset]
 
-        logging.info("=== Запуск FlyB (С пептидом наказания) ===")
-        res_b = run_fly(csv_path, mode="B", n_steps=2000, seed=42)
+            logging.info(f"=== Запуск {asset} - FlyA (Чистое подкрепление) ===")
+            res_a = run_fly(csv_path, mode="A", n_steps=2000, seed=42, asset_name=asset)
+            all_results.append(res_a)
 
-        logging.info("==========================================")
-        logging.info("СРАВНЕНИЕ РЕЗУЛЬТАТОВ (FlyA vs FlyB):")
-        logging.info(f"FlyA (Без наказания): Доходность = {res_a['return_pct']:+.2f}%, WinRate = {res_a['winrate']*100:.1f}%, Сделок = {res_a['total_trades']}")
-        logging.info(f"FlyB (С наказанием):  Доходность = {res_b['return_pct']:+.2f}%, WinRate = {res_b['winrate']*100:.1f}%, Сделок = {res_b['total_trades']}")
-        logging.info("==========================================")
+            logging.info(f"=== Запуск {asset} - FlyB (С пептидом наказания) ===")
+            res_b = run_fly(csv_path, mode="B", n_steps=2000, seed=42, asset_name=asset)
+            all_results.append(res_b)
+
+        # Итоговая сводная таблица
+        logging.info("==================================================================")
+        logging.info("ИТОГОВАЯ СВОДНАЯ ТАБЛИЦА РЕЗУЛЬТАТОВ:")
+        logging.info(f"{'ASSET':<6} | {'FLY':<4} | {'RETURN':<8} | {'WINRATE':<8} | {'TRADES':<6} | {'PEAK':<8}")
+        logging.info("-" * 55)
+        for r in all_results:
+            logging.info(f"{r['asset']:<6} | {r['mode']:<4} | {r['return_pct']:+7.2f}% | {r['winrate']*100:5.1f}%   | {r['total_trades']:<6} | ${r['peak']:.2f}")
+        logging.info("==================================================================")
 
         if loop_mode:
             logging.info("🔁 Новый цикл симуляции через 3 сек...")

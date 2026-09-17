@@ -7,6 +7,7 @@ import { camera } from './scene.js';
 const stepCounter = document.querySelector('#step-counter');
 const runStatus = document.querySelector('#run-status');
 const modeBadge = document.querySelector('#mode-badge');
+const assetBadge = document.querySelector('#asset-badge');
 const metricBalance = document.querySelector('#metric-balance');
 const metricPnl = document.querySelector('#metric-pnl');
 const metricPosition = document.querySelector('#metric-position');
@@ -41,6 +42,9 @@ export function updateHUD(data) {
     if (data.fly_mode !== undefined || data.mode !== undefined) {
         const m = data.fly_mode || data.mode;
         modeBadge.textContent = `MODE: FLY ${m}`;
+    }
+    if (data.asset !== undefined && assetBadge) {
+        assetBadge.textContent = `ASSET: ${data.asset}`;
     }
     if (data.balance !== undefined) {
         metricBalance.textContent = `$${data.balance.toFixed(2)}`;
