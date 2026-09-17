@@ -107,11 +107,11 @@ python main.py
 ## Результаты
 
 ```text
-FlyA: +11.54%, WinRate 55.6%, сделок 169 (Побед 94, Поражений 75)
-FlyB: +11.64%, WinRate 56.0%, сделок 168 (Побед 94, Поражений 74)
+FlyA: +3.43%, Peak $162.87, WinRate 50.8%, сделок 177 (Побед 90, Поражений 87)
+FlyB: +3.43%, Peak $162.87, WinRate 50.8%, сделок 177 (Побед 90, Поражений 87)
 ```
 
-> **Примечание:** Результаты получены на исторических данных BTCUSDT (Binance, 1h, 1000 свечей). Вы можете в любой момент скачать актуальные данные для тестирования с помощью скрипта `scripts/download_data.py`.
+> **Примечание:** Results with leveraged paper trading. ⚠️ Leverage amplifies both gains and losses. This is a demonstration project, not production trading software. Вы можете в любой момент скачать актуальные данные для тестирования с помощью скрипта `scripts/download_data.py`.
 
 ---
 

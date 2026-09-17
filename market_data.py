@@ -1,5 +1,5 @@
 """
-Загрузка рыночных данных OHLCV, расчет признаков с expanding-нормализацией и кодирование в спайки.
+Загрузка рыночных данных OHLCV, расчет признаков (Returns, Vol, RSI, MACD, Bollinger Bands) с expanding-нормализацией и кодирование в спайки.
 """
 
 import numpy as np
@@ -44,7 +44,7 @@ def generate_synthetic_data(n: int = 1000) -> pd.DataFrame:
 
 
 def normalize_features(df: pd.DataFrame, window: int = 20) -> np.ndarray:
-    """Расчет логарифмических доходностей и объема с expanding-нормализацией (без заглядывания в будущее)."""
+    """Расчет признаков (returns, volume, RSI, MACD, BB) с expanding-нормализацией."""
     close = df["close"].values
     volume = df["volume"].values
 
@@ -55,17 +55,41 @@ def normalize_features(df: pd.DataFrame, window: int = 20) -> np.ndarray:
     vol_std = np.std(volume) if np.std(volume) > 0 else 1.0
     norm_vol = (volume - vol_mean) / vol_std
 
+    # RSI (14 periods)
+    delta = np.diff(close, prepend=close[0])
+    gain = np.where(delta > 0, delta, 0)
+    loss = np.where(delta < 0, -delta, 0)
+    avg_gain = pd.Series(gain).rolling(14).mean().values
+    avg_loss = pd.Series(loss).rolling(14).mean().values
+    rs = avg_gain / (avg_loss + 1e-9)
+    rsi = 100 - (100 / (1 + rs))
+    rsi = rsi / 100.0  # в [0, 1]
+
+    # MACD
+    ema12 = pd.Series(close).ewm(span=12).mean().values
+    ema26 = pd.Series(close).ewm(span=26).mean().values
+    macd = (ema12 - ema26) / close  # нормализовано
+
+    # Bollinger Bands position
+    ma20 = pd.Series(close).rolling(20).mean().values
+    std20 = pd.Series(close).rolling(20).std().values
+    bb_pos = (close - ma20) / (2 * std20 + 1e-9)
+    bb_pos = np.clip(bb_pos, -1, 1)
+
     n = len(close)
     features_list = []
 
     for i in range(window, n):
         win_returns = log_returns[i - window + 1:i + 1]
         win_vol = norm_vol[i - window + 1:i + 1]
-        feat = np.concatenate([win_returns, win_vol])
+        win_rsi = rsi[i - window + 1:i + 1]
+        win_macd = macd[i - window + 1:i + 1]
+        win_bb = bb_pos[i - window + 1:i + 1]
+        feat = np.concatenate([win_returns, win_vol, win_rsi, win_macd, win_bb])
         features_list.append(feat)
 
     if not features_list:
-        feat = np.zeros(window * 2)
+        feat = np.zeros(window * 5)
         features_list.append(feat)
 
     features_matrix = np.array(features_list)
@@ -84,7 +108,7 @@ class FeatureEncoder:
 
     def __init__(self, n_sensory: int = config.N_SENSORY, rng: np.random.Generator = None):
         self.rng = rng if rng is not None else np.random.default_rng(42)
-        self.proj_matrix = self.rng.uniform(-1.0, 1.0, (config.FEATURE_WINDOW * 2, n_sensory))
+        self.proj_matrix = self.rng.uniform(-1.0, 1.0, (config.FEATURE_WINDOW * 5, n_sensory))
 
     def encode(self, features: np.ndarray) -> np.ndarray:
         """Преобразование вектора признаков в непрерывную активность (rate-coding)."""

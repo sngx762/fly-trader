@@ -20,14 +20,14 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
-def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42) -> dict:
+def run_fly(csv_path: str, mode: str = "A", n_steps: int = 5000, seed: int = 42) -> dict:
     """Запуск симуляции торгового агента (мухи) на рыночных данных."""
     rng = np.random.default_rng(seed)
     
     try:
         df = load_ohlcv(csv_path)
     except FileNotFoundError:
-        df = generate_synthetic_data(n=3000)
+        df = generate_synthetic_data(n=6000)
 
     norm_features = normalize_features(df, window=config.FEATURE_WINDOW)
 
@@ -40,7 +40,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
     steps_to_run = min(n_steps, len(norm_features))
     shared_state.update(mode=mode, running=True, total_steps=steps_to_run, fly_mode=mode)
 
-    sleep_sec = float(os.getenv("SLEEP_SEC", "0.02"))
+    sleep_sec = float(os.getenv("SLEEP_SEC", "0.05"))
 
     for step_idx in range(steps_to_run):
         feat_vector = norm_features[step_idx]
@@ -51,9 +51,6 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
 
         action, confidence = agent.decide(mbon_activity)
 
-        if step_idx == 0:
-            logging.debug(f"Debug step 1: sensory_sum={sensory_spikes.sum():.4f}, mbon_activity={mbon_activity}, decision={action}, confidence={confidence}")
-
         current_price = float(df["close"].iloc[config.FEATURE_WINDOW + step_idx])
         trader.update_price(current_price)
         pnl_delta = trader.execute(action, current_price)
@@ -63,7 +60,7 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
         if da_info["da_level"] > config.DA_BASELINE or da_info["is_punishment"]:
             brain.apply_dopamine(da_info["da_level"], is_punishment=da_info["is_punishment"])
 
-        agent.update_readout(mbon_activity, action, pnl_delta, da_level=da_info["da_level"])
+        agent.update_readout(mbon_activity, action, pnl_delta, da_level=da_info["da_level"], lr=config.LR_READOUT)
 
         # Обновление shared_state для 3D дашборда
         shared_state.update(
@@ -103,13 +100,17 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
         elif da_info["rpe"] < -0.5 and mode == "B":
             shared_state.push_event("punishment", {"intensity": float(abs(da_info["rpe"]))})
 
-        if (step_idx + 1) % 200 == 0:
+        if (step_idx + 1) % 500 == 0:
             eq = trader.get_equity()
-            logging.info(f"[Fly {mode}] step {step_idx+1}, sleep={sleep_sec} | Price: {current_price:.2f} | Equity: {eq:.2f} | DA: {da_info['da_level']:.2f}")
+            logging.info(f"[Fly {mode}] step {step_idx+1}/{steps_to_run}, sleep={sleep_sec} | Price: {current_price:.2f} | Equity: {eq:.2f} | DA: {da_info['da_level']:.2f}")
 
         time.sleep(sleep_sec)
 
     shared_state.update(running=False, mode="finished")
+
+    max_equity = max(trader.equity_curve)
+    min_equity = min(trader.equity_curve)
+    logging.info(f"Peak equity: ${max_equity:.2f} | Min equity: ${min_equity:.2f}")
 
     trades = trader.trades
     sell_trades = [t for t in trades if t["type"] == "SELL"]
@@ -123,8 +124,9 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
     if total_trades == 0:
         logging.warning("⚠️ Муха не совершила ни одной сделки, проверь мозг")
 
-    logging.info(f"--- Итоги Fly {mode} ---")
-    logging.info(f"Финал. капитал: {final_equity:.2f} ({return_pct:+.2f}%)")
+    logging.info(f"--- Итоги Fly {mode} (3x Leverage) ---")
+    logging.info(f"Финальный капитал: {final_equity:.2f} ({return_pct:+.2f}%)")
+    logging.info(f"Пиковый капитал: {max_equity:.2f} | Минимальный: {min_equity:.2f}")
     logging.info(f"Всего сделок: {total_trades} (Побед: {wins}, Поражений: {losses})")
     logging.info(f"Win Rate: {winrate * 100:.1f}%\n")
 
@@ -132,6 +134,8 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
         "mode": mode,
         "final_equity": final_equity,
         "return_pct": return_pct,
+        "max_equity": max_equity,
+        "min_equity": min_equity,
         "total_trades": total_trades,
         "wins": wins,
         "losses": losses,
@@ -141,7 +145,8 @@ def run_fly(csv_path: str, mode: str = "A", n_steps: int = 2000, seed: int = 42)
 
 def main():
     """Запуск фонового сервера TradingView и симуляции двух мух (FlyA и FlyB)."""
-    logging.info(f"⏱️ SLEEP_SEC={os.getenv('SLEEP_SEC', '0.02')}, LOOP={os.getenv('LOOP_SIMULATION', 'false')}")
+    total_steps = int(os.getenv("TOTAL_STEPS", 5000))
+    logging.info(f"⏱️ SLEEP_SEC={os.getenv('SLEEP_SEC', '0.05')}, TOTAL_STEPS={total_steps}, LOOP={os.getenv('LOOP_SIMULATION', 'false')}")
 
     def _run_server():
         try:
@@ -155,20 +160,19 @@ def main():
     logging.info("🚀 TradingView webhook server & 3D Dashboard starting on http://0.0.0.0:5001 ...")
 
     csv_path = "data/BTCUSDT_1h.csv"
-    
     loop_mode = os.getenv("LOOP_SIMULATION", "false").lower() == "true"
 
     while True:
-        logging.info("=== Запуск FlyA (Чистое подкрепление) ===")
-        res_a = run_fly(csv_path, mode="A", n_steps=2000, seed=42)
+        logging.info("=== Запуск FlyA (Чистое подкрепление, 3x Leverage) ===")
+        res_a = run_fly(csv_path, mode="A", n_steps=total_steps, seed=42)
 
-        logging.info("=== Запуск FlyB (С пептидом наказания) ===")
-        res_b = run_fly(csv_path, mode="B", n_steps=2000, seed=42)
+        logging.info("=== Запуск FlyB (С пептидом наказания, 3x Leverage) ===")
+        res_b = run_fly(csv_path, mode="B", n_steps=total_steps, seed=42)
 
         logging.info("==========================================")
-        logging.info("СРАВНЕНИЕ РЕЗУЛЬТАТОВ (FlyA vs FlyB):")
-        logging.info(f"FlyA (Без наказания): Доходность = {res_a['return_pct']:+.2f}%, WinRate = {res_a['winrate']*100:.1f}%, Сделок = {res_a['total_trades']}")
-        logging.info(f"FlyB (С наказанием):  Доходность = {res_b['return_pct']:+.2f}%, WinRate = {res_b['winrate']*100:.1f}%, Сделок = {res_b['total_trades']}")
+        logging.info("СРАВНЕНИЕ РЕЗУЛЬТАТОВ (FlyA vs FlyB, 3x Leverage):")
+        logging.info(f"FlyA (Без наказания): Доходность = {res_a['return_pct']:+.2f}%, Пик = ${res_a['max_equity']:.2f}, WinRate = {res_a['winrate']*100:.1f}%, Сделок = {res_a['total_trades']}")
+        logging.info(f"FlyB (С наказанием):  Доходность = {res_b['return_pct']:+.2f}%, Пик = ${res_b['max_equity']:.2f}, WinRate = {res_b['winrate']*100:.1f}%, Сделок = {res_b['total_trades']}")
         logging.info("==========================================")
 
         if loop_mode:
